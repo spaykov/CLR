@@ -83,3 +83,40 @@ Once `credentials.json` is in place, the Email tab becomes fully functional: fet
 
 ### Known issue resolved
 FastAPI's `Jinja2Templates.TemplateResponse` threw `TypeError: unhashable type: 'dict'` due to a Jinja2 LRU cache bug with the installed version. Fixed by switching to `FileResponse` and hardcoding `/static/` paths in the HTML directly.
+
+---
+
+## Session 3 — 2026-06-24
+
+### Summary
+Replaced the pending Gmail OAuth2/GCP integration with POP3 + app-password auth (no Google Cloud project needed), got it working end-to-end against the real inbox, then put the project under version control for the first time and pushed it to GitHub.
+
+### What was built
+- `clr/core/email_fetcher.py` — rewritten to use `poplib.POP3_SSL` against `pop.gmail.com:995` instead of the Gmail REST API; parses raw MIME via the stdlib `email` module
+- `clr/config.py` — added `gmail_address` / `gmail_app_password` settings (`CLR_GMAIL_ADDRESS` in `.env`; password is **not** read from `.env`)
+- `main.py` — prompts for the Gmail app password via hidden `getpass` input at server startup (held in memory only, propagated to the uvicorn `--reload` worker via `os.environ`)
+- `clr/api/routes.py` — removed `/email/auth/url` and `/email/auth/callback`; replaced `/email/auth/status` with `/email/status` (`{"configured": bool}`)
+- `ui/templates/index.html`, `ui/static/js/email.js` — "Connect Gmail" OAuth flow replaced with a "Check Connection" button and app-password setup instructions
+- Removed `google-api-python-client`, `google-auth-httplib2`, `google-auth-oauthlib` from `requirements.txt` and uninstalled from `.venv`
+- `README.md` — written from scratch (previously a placeholder containing `123`)
+
+### Debugging the live connection
+First few attempts failed with Gmail POP3 auth errors, in order:
+1. `-ERR [AUTH] Username and password not accepted` — 2-Step Verification wasn't enabled yet (required for app passwords to exist at all)
+2. Same error again — had pasted an app password generated for a *different* Google account by mistake
+3. `-ERR [SYS/PERM] Your account is not enabled for POP access` — POP was off in Gmail Settings → Forwarding and POP/IMAP
+4. After enabling POP: success. `/api/v1/email/fetch` pulled real inbox messages and ran them through the full filter → summarize → rewrite → bandwidth → predict → suggest pipeline correctly.
+
+### Version control
+- Repo had never been a git repo. Ran `git init`, added `.idea/` and `.claude/settings.local.json` to `.gitignore` (IDE/local-only state), made the root commit.
+- Remote `https://github.com/spaykov/CLR.git` already existed with one unrelated commit (a placeholder README containing `123`) on `main`. Merged with `--allow-unrelated-histories` rather than force-pushing, to avoid destroying the existing remote history.
+- Push initially failed (`403`) because Windows had a cached git credential for an unrelated GitHub account (`test-S6`); cleared it via `cmdkey /delete` and the retry succeeded.
+- Pushed the merge, then a follow-up commit replacing the placeholder README with a real one.
+
+### Testing
+- `POST /api/v1/email/fetch` against the live inbox — confirmed correct filtering of promotional email (Temu, inventr.io), accurate bandwidth score (100/"clear" for an all-low-value batch).
+- `POST /api/v1/process/batch` with hand-crafted synthetic messages (urgent outage, meeting reminder, promo, low-stakes decision) — confirmed priority/cognitive-cost/filtering logic correctly distinguishes a critical actionable item (bandwidth score dropped to 9/"overloaded") from noise.
+- Confirmed there is no server-side persistence layer — every fetch/process call is stateless; nothing is stored in a database or file.
+
+### Current state
+Gmail integration is fully working via app password. Project is version-controlled and pushed to `github.com/spaykov/CLR` (`main` branch).
