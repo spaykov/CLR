@@ -120,3 +120,9 @@ First few attempts failed with Gmail POP3 auth errors, in order:
 
 ### Current state
 Gmail integration is fully working via app password. Project is version-controlled and pushed to `github.com/spaykov/CLR` (`main` branch).
+
+### Blocked / next session
+**Plan a security feature pass.** Flagged this session: there is no server-side persistence layer at all (every `/email/fetch` or `/process` call is stateless, nothing written to a database or file) — that's one candidate, but it should be scoped as part of a broader review of what security work remains, not fixed in isolation. Before writing code, draft a plan covering at least:
+- Persistence layer for fetched/processed messages (what's stored, where, for how long, and whether raw email bodies should be retained at all)
+- Whether `/api/v1/*` endpoints need auth now that real Gmail content flows through them (currently anyone on localhost can hit `/email/fetch`)
+- Anything else `security-review` or `code-review --high` surfaces once Gmail integration + persistence are in scope
