@@ -1,5 +1,14 @@
 const BASE_URL = "/api/v1";
 
+// Auth (when CLR_API_KEY is configured) rides the clr_session cookie set by
+// POST /auth/login — no key is ever embedded in the page. A 401 here means
+// the session expired or was never established; bounce to the login screen.
+function handleUnauthorized(res) {
+  if (res.status === 401) {
+    window.location.reload();
+  }
+}
+
 export class ApiError extends Error {
   constructor(status, message) {
     super(message);
@@ -21,11 +30,13 @@ async function post(path, body, timeout = 30000) {
     const res = await fetch(BASE_URL + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify(body),
       signal: controller.signal,
     });
     clearTimeout(timer);
     if (!res.ok) {
+      handleUnauthorized(res);
       const err = await res.json().catch(() => ({}));
       throw new ApiError(res.status, err.detail ?? "Request failed");
     }
@@ -38,8 +49,19 @@ async function post(path, body, timeout = 30000) {
 }
 
 async function get(path) {
-  const res = await fetch(BASE_URL + path);
+  const res = await fetch(BASE_URL + path, { credentials: "same-origin" });
   if (!res.ok) {
+    handleUnauthorized(res);
+    const err = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, err.detail ?? "Request failed");
+  }
+  return res.json();
+}
+
+async function del(path) {
+  const res = await fetch(BASE_URL + path, { method: "DELETE", credentials: "same-origin" });
+  if (!res.ok) {
+    handleUnauthorized(res);
     const err = await res.json().catch(() => ({}));
     throw new ApiError(res.status, err.detail ?? "Request failed");
   }
@@ -74,6 +96,14 @@ export async function health() {
   return get("/health");
 }
 
-export async function fetchEmails(limit = 10) {
-  return post("/email/fetch", { limit }, 300000);
+export async function getHistory(limit = 20, offset = 0) {
+  return get(`/history?limit=${limit}&offset=${offset}`);
+}
+
+export async function deleteHistoryItem(id) {
+  return del(`/history/${encodeURIComponent(id)}`);
+}
+
+export async function clearHistory() {
+  return del("/history");
 }

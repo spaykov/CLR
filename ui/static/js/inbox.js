@@ -1,4 +1,5 @@
 import { processMessage, uuid } from "./api.js";
+import { escapeHtml } from "./dom.js";
 
 const STORAGE_KEY = "clr_inbox_results";
 const MAX_HISTORY = 20;
@@ -29,20 +30,20 @@ function renderCard(msg) {
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2">
           <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${cls.badge}">${p.toUpperCase()}</span>
-          <span class="text-sm text-slate-500 ${strike}">${msg.original?.source ?? "—"} · ${msg.original?.category ?? "—"}</span>
+          <span class="text-sm text-slate-500 ${strike}">${escapeHtml(msg.original?.source ?? "—")} · ${escapeHtml(msg.original?.category ?? "—")}</span>
         </div>
         <div class="flex gap-0.5 flex-shrink-0 ml-2">${costDots(msg.cognitive_cost)}</div>
       </div>
-      ${msg.summary ? `<p class="text-sm font-medium text-slate-800 mb-1 ${strike}"><span class="text-slate-400 text-xs mr-1">Summary</span>${msg.summary}</p>` : ""}
-      ${msg.simplified ? `<p class="text-sm text-slate-600 mb-2"><span class="text-slate-400 text-xs mr-1">Simplified</span>${msg.simplified}</p>` : ""}
-      ${filtered ? `<p class="text-xs text-slate-400 italic">Filtered: ${msg.filter_reason ?? ""}</p>` : ""}
+      ${msg.summary ? `<p class="text-sm font-medium text-slate-800 mb-1 ${strike}"><span class="text-slate-400 text-xs mr-1">Summary</span>${escapeHtml(msg.summary)}</p>` : ""}
+      ${msg.simplified ? `<p class="text-sm text-slate-600 mb-2"><span class="text-slate-400 text-xs mr-1">Simplified</span>${escapeHtml(msg.simplified)}</p>` : ""}
+      ${filtered ? `<p class="text-xs text-slate-400 italic">Filtered: ${escapeHtml(msg.filter_reason ?? "")}</p>` : ""}
       <details class="mt-2">
         <summary class="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-600">Details</summary>
         <div class="mt-2 text-xs text-slate-600 space-y-1 pl-2 border-l border-slate-100">
-          ${msg.filter_reason ? `<p><span class="font-medium">Filter reason:</span> ${msg.filter_reason}</p>` : ""}
+          ${msg.filter_reason ? `<p><span class="font-medium">Filter reason:</span> ${escapeHtml(msg.filter_reason)}</p>` : ""}
           ${msg.action_required ? `<p><span class="font-medium">Action required:</span> yes</p>` : ""}
-          ${msg.suggested_action ? `<p><span class="font-medium">Suggested:</span> ${msg.suggested_action}</p>` : ""}
-          <p class="text-slate-400 break-words"><span class="font-medium text-slate-500">Original:</span> ${msg.original?.content ?? ""}</p>
+          ${msg.suggested_action ? `<p><span class="font-medium">Suggested:</span> ${escapeHtml(msg.suggested_action)}</p>` : ""}
+          <p class="text-slate-400 break-words"><span class="font-medium text-slate-500">Original:</span> ${escapeHtml(msg.original?.content ?? "")}</p>
         </div>
       </details>
     </div>`;

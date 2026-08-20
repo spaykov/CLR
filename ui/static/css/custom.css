@@ -6,3 +6,13 @@
 section[id^="panel-"] {
   animation: fadeIn 0.15s ease-in;
 }
+
+@keyframes indeterminateProgress {
+  0%   { transform: translateX(-100%); width: 40%; }
+  50%  { transform: translateX(60%);   width: 60%; }
+  100% { transform: translateX(150%);  width: 40%; }
+}
+
+.progress-bar-indeterminate {
+  animation: indeterminateProgress 1.4s ease-in-out infinite;
+}

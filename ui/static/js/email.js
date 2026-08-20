@@ -1,18 +1,19 @@
 const BASE_URL = "/api/v1";
 
 async function getEmailStatus() {
-  const res = await fetch(BASE_URL + "/email/status");
+  const res = await fetch(BASE_URL + "/email/status", { credentials: "same-origin" });
   return res.json();
 }
 
-async function fetchEmails(limit) {
+async function fetchEmails(hours) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 300000);
   try {
     const res = await fetch(BASE_URL + "/email/fetch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ limit }),
+      credentials: "same-origin",
+      body: JSON.stringify({ hours }),
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -76,22 +77,25 @@ export function initEmail() {
     const errorEl = document.getElementById("email-error");
     const statusEl = document.getElementById("email-status");
     const timerEl = document.getElementById("email-timer");
+    const progressEl = document.getElementById("email-progress-track");
     errorEl.classList.add("hidden");
     statusEl.classList.add("hidden");
 
-    const limit = parseInt(document.getElementById("email-limit").value, 10) || 10;
+    const hours = parseInt(document.getElementById("email-hours").value, 10) || 24;
 
     btn.disabled = true;
     btn.innerHTML = spinner("Fetching...");
     let elapsed = 0;
     timerEl.textContent = "0s";
     timerEl.classList.remove("hidden");
+    progressEl.classList.remove("hidden");
     const interval = setInterval(() => { elapsed++; timerEl.textContent = `${elapsed}s`; }, 1000);
 
     try {
-      const result = await fetchEmails(limit);
+      const result = await fetchEmails(hours);
       clearInterval(interval);
       timerEl.classList.add("hidden");
+      progressEl.classList.add("hidden");
 
       const count = result.fetched ?? result.processed?.length ?? 0;
       statusEl.textContent = `✓ Fetched and processed ${count} email${count !== 1 ? "s" : ""} — check Dashboard and Insights.`;
@@ -112,6 +116,7 @@ export function initEmail() {
     } catch (err) {
       clearInterval(interval);
       timerEl.classList.add("hidden");
+      progressEl.classList.add("hidden");
       errorEl.textContent = err.message ?? "Email fetch failed.";
       errorEl.classList.remove("hidden");
       btn.textContent = "Fetch Emails";

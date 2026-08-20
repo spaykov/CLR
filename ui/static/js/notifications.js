@@ -1,4 +1,5 @@
 import { filterNotification, uuid } from "./api.js";
+import { escapeHtml } from "./dom.js";
 
 const STORAGE_KEY = "clr_notification_results";
 const MAX_HISTORY = 10;
@@ -19,11 +20,11 @@ function renderCard(result) {
     <div class="bg-white rounded-xl border-l-4 ${borderCls} shadow-sm p-4 mb-3">
       <div class="flex items-center justify-between mb-2">
         <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${badgeCls}">${icon}</span>
-        <span class="text-sm text-slate-400">${result.original?.app ?? "—"}</span>
+        <span class="text-sm text-slate-400">${escapeHtml(result.original?.app ?? "—")}</span>
       </div>
-      <p class="text-sm font-medium ${titleClass} mb-1">${titleText}</p>
-      ${kept && result.simplified_body ? `<p class="text-sm text-slate-600 mb-1">${result.simplified_body}</p>` : ""}
-      <p class="text-xs text-slate-400 italic mt-1">${result.reason ?? ""}</p>
+      <p class="text-sm font-medium ${titleClass} mb-1">${escapeHtml(titleText)}</p>
+      ${kept && result.simplified_body ? `<p class="text-sm text-slate-600 mb-1">${escapeHtml(result.simplified_body)}</p>` : ""}
+      <p class="text-xs text-slate-400 italic mt-1">${escapeHtml(result.reason ?? "")}</p>
     </div>`;
 }
 

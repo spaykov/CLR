@@ -1,4 +1,5 @@
 import { decide, uuid } from "./api.js";
+import { escapeHtml } from "./dom.js";
 
 function renderResult(task) {
   if (task.auto_decided) {
@@ -8,7 +9,7 @@ function renderResult(task) {
         <div class="flex items-center gap-2 mb-3">
           <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-300">✓ Auto-decided</span>
         </div>
-        <p class="text-sm font-medium text-slate-800 mb-4">${task.decision ?? ""}</p>
+        <p class="text-sm font-medium text-slate-800 mb-4">${escapeHtml(task.decision ?? "")}</p>
         <div class="mb-3">
           <div class="flex justify-between text-xs text-slate-500 mb-1">
             <span>Confidence</span><span>${conf}%</span>
@@ -17,7 +18,7 @@ function renderResult(task) {
             <div class="bg-blue-500 h-2 rounded-full transition-all" style="width: ${conf}%"></div>
           </div>
         </div>
-        <p class="text-xs text-slate-500 italic">${task.reasoning ?? ""}</p>
+        <p class="text-xs text-slate-500 italic">${escapeHtml(task.reasoning ?? "")}</p>
       </div>`;
   }
   return `
@@ -25,7 +26,7 @@ function renderResult(task) {
       <div class="flex items-center gap-2 mb-3">
         <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">⚠ Needs your input</span>
       </div>
-      <p class="text-xs text-slate-600 italic">${task.reasoning ?? "This decision requires your judgement."}</p>
+      <p class="text-xs text-slate-600 italic">${escapeHtml(task.reasoning ?? "This decision requires your judgement.")}</p>
     </div>`;
 }
 

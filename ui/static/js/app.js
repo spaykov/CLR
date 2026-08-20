@@ -50,6 +50,30 @@ health()
     txt.className = "text-xs text-red-500";
   });
 
+fetch("/api/v1/version", { credentials: "same-origin" })
+  .then(res => res.json())
+  .then(({ started_at }) => {
+    const el = document.getElementById("server-version");
+    const started = new Date(started_at);
+    el.textContent = `Backend loaded ${started.toLocaleTimeString()}`;
+    el.title = `Backend process (re)started at ${started.toLocaleString()} — reload the page after a code change to reconfirm this updates`;
+  })
+  .catch(() => {
+    document.getElementById("server-version").textContent = "";
+  });
+
+fetch("/api/v1/auth/status", { credentials: "same-origin" })
+  .then(res => res.json())
+  .then(({ auth_required }) => {
+    if (auth_required) document.getElementById("logout-btn").classList.remove("hidden");
+  })
+  .catch(() => {});
+
+document.getElementById("logout-btn").addEventListener("click", async () => {
+  await fetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+  window.location.reload();
+});
+
 initBandwidth();
 initInbox();
 initEmail();

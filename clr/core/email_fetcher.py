@@ -1,6 +1,6 @@
-import poplib
+import imaplib
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email import message_from_bytes
 from email.message import Message
 from email.utils import parsedate_to_datetime
@@ -8,50 +8,68 @@ from email.utils import parsedate_to_datetime
 from clr.config import settings
 from clr.models.message import IncomingMessage, MessageCategory
 
-POP3_HOST = "pop.gmail.com"
-POP3_PORT = 995
+IMAP_HOST = "imap.gmail.com"
+IMAP_PORT = 993
 BODY_LIMIT = 2000
+MAX_MESSAGES = 50  # safety cap: each fetched message costs 3 LLM calls in the pipeline
 
 
 def has_credentials() -> bool:
     return bool(settings.gmail_address and settings.gmail_app_password)
 
 
-def fetch_emails(limit: int = 10) -> list[IncomingMessage]:
+def fetch_emails(hours: int = 24) -> list[IncomingMessage]:
     if not has_credentials():
         raise ValueError(
             "Gmail not configured. Set CLR_GMAIL_ADDRESS and CLR_GMAIL_APP_PASSWORD in .env."
         )
 
-    conn = poplib.POP3_SSL(POP3_HOST, POP3_PORT)
-    try:
-        conn.user(settings.gmail_address)
-        conn.pass_(settings.gmail_app_password)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    # IMAP's SINCE is date-only (no time-of-day), so search a day early and
+    # filter precisely against `cutoff` below using the real Date header.
+    search_since = (cutoff - timedelta(days=1)).strftime("%d-%b-%Y")
 
-        total = len(conn.list()[1])
-        first = max(1, total - limit + 1)
+    conn = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+    try:
+        conn.login(settings.gmail_address, settings.gmail_app_password)
+        conn.select("INBOX", readonly=True)
+
+        status, data = conn.search(None, f'(SINCE "{search_since}")')
+        if status != "OK" or not data or not data[0]:
+            return []
 
         messages = []
-        for i in range(total, first - 1, -1):
-            _, lines, _ = conn.retr(i)
-            raw = b"\n".join(lines)
-            messages.append(_to_incoming_message(message_from_bytes(raw)))
+        for msg_id in reversed(data[0].split()):  # newest sequence number first
+            status, msg_data = conn.fetch(msg_id, "(RFC822)")
+            if status != "OK" or not msg_data or not msg_data[0]:
+                continue
+            parsed = message_from_bytes(msg_data[0][1])
+
+            received_at = _parse_date(parsed.get("Date", ""))
+            if received_at < cutoff:
+                continue  # SINCE only narrowed by day; skip anything outside the real window
+
+            messages.append(_to_incoming_message(parsed, received_at))
+            if len(messages) >= MAX_MESSAGES:
+                break
         return messages
     finally:
-        conn.quit()
+        conn.logout()
 
 
-def _to_incoming_message(msg: Message) -> IncomingMessage:
+def _parse_date(date_str: str) -> datetime:
+    try:
+        parsed = parsedate_to_datetime(date_str)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    except Exception:
+        return datetime.now(timezone.utc)
+
+
+def _to_incoming_message(msg: Message, received_at: datetime) -> IncomingMessage:
     subject = msg.get("Subject", "(no subject)")
     from_addr = msg.get("From", "unknown")
-    date_str = msg.get("Date", "")
-
-    try:
-        received_at = parsedate_to_datetime(date_str)
-        if received_at.tzinfo is None:
-            received_at = received_at.replace(tzinfo=timezone.utc)
-    except Exception:
-        received_at = datetime.now(timezone.utc)
 
     body = _extract_body(msg)
     content = f"{subject}\n\n{body}".strip() if body else subject

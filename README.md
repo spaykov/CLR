@@ -33,11 +33,11 @@ Required: an OpenAI-compatible chat endpoint running locally (e.g. [Ollama](http
 
 ### Gmail integration (optional)
 
-The Email tab fetches your inbox over POP3 using a Gmail **app password** — no Google Cloud project or OAuth setup required.
+The Email tab fetches your inbox over IMAP (read-only) using a Gmail **app password** — no Google Cloud project or OAuth setup required.
 
 1. Enable 2-Step Verification on your Google account
 2. Generate an app password at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-3. In Gmail, go to **Settings → Forwarding and POP/IMAP** and enable POP
+3. In Gmail, go to **Settings → Forwarding and POP/IMAP** and enable IMAP access
 4. Set `CLR_GMAIL_ADDRESS` in `.env`
 5. Run `python main.py` — it will prompt for the app password at the terminal (never written to disk)
 
