@@ -80,6 +80,19 @@ def test_login_correct_password_sets_cookie_that_authenticates(client, monkeypat
     assert resp.status_code == 200
 
 
+def test_login_cookie_is_not_secure_over_plain_http(client, monkeypatch):
+    monkeypatch.setattr(settings, "login_password", "pw123")
+    resp = client.post("/api/v1/auth/login", json={"password": "pw123"})
+    assert "Secure" not in resp.headers.get("set-cookie", "")
+
+
+def test_login_cookie_is_secure_over_https(monkeypatch):
+    monkeypatch.setattr(settings, "login_password", "pw123")
+    https_client = TestClient(main.app, base_url="https://testserver")
+    resp = https_client.post("/api/v1/auth/login", json={"password": "pw123"})
+    assert "Secure" in resp.headers.get("set-cookie", "")
+
+
 def test_logout_invalidates_session(client, monkeypatch):
     monkeypatch.setattr(settings, "login_password", "pw123")
     client.post("/api/v1/auth/login", json={"password": "pw123"})

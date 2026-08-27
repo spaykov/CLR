@@ -300,3 +300,30 @@ Ran the new check against the actual live `.env` before considering this done, s
 - **User needs to update `CLR_LOGIN_PASSWORD` in `.env` before the next restart** — run `python scripts/rotate_secrets.py` for a fresh one, or pick a 12+ character passphrase of their own.
 - Security plan: transport security (TLS) is the last item, then re-run `security-review`/`code-review --high` given how much the threat model has shifted across sessions 4, 6, 7, and 8.
 - Standing items from prior sessions unchanged: `advisor.suggest_reductions` empty-batch waste, batch-card expand-to-view, manual-vs-automatic email fetch, frontend storage strategy, dedicated Gmail test account.
+
+---
+
+## Session 9 — 2026-08-27 (continued)
+
+### Summary
+Implemented transport security (TLS), the last item in the original 3-item-plus-prompt-injection-plus-rate-limiting-plus-secrets security plan. User chose the self-signed-cert route (uvicorn terminates TLS directly) over a reverse proxy, after a walkthrough of the tradeoff.
+
+### What was built
+- `scripts/generate_tls_cert.py` (new) — generates a self-signed cert (`cryptography` library, RSA-2048, SHA-256, 825-day validity) with SAN covering `localhost`, `127.0.0.1`, this machine's auto-detected LAN IP, and any extra hostnames passed as CLI args. Writes `certs/cert.pem` / `certs/key.pem`.
+- `.gitignore` — added `certs/` (the private key must never be committed).
+- `requirements.txt` — added `cryptography>=42.0.0` as an explicit dependency (was already present transitively, now used directly).
+- `clr/config.py` — `tls_cert_file`/`tls_key_file` settings, defaulting to `certs/cert.pem`/`certs/key.pem`.
+- `main.py` — `validate_startup_config` gained a `tls_available` parameter (default `True`, so existing secrets-only tests don't need to thread it through): once `CLR_HOST` binds beyond localhost, TLS is now **required**, same fail-fast pattern as the secrets checks, pointing at the new script. `uvicorn.run()` now passes `ssl_keyfile`/`ssl_certfile` whenever both files exist on disk (works for either localhost or LAN — simpler mental model than gating it to LAN-only).
+- `clr/api/routes.py` — the login route's session cookie now sets `secure=request.url.scheme == "https"` instead of always `False`. Needed `request: Request` added to the `login()` signature.
+- New/updated tests: `test_startup_config.py` (+3: TLS required/accepted on LAN, not required on localhost), `test_generate_tls_cert.py` (new, 2: cert/key are valid and loadable, SAN includes localhost/127.0.0.1/detected LAN IP/extra hosts), `test_auth.py` (+2: cookie lacks `Secure` over plain HTTP, has it over HTTPS — using `TestClient(main.app, base_url="https://testserver")` to simulate the scheme). 89/89 passing (was 82; +7).
+- Generated the actual certificate for this machine: `certs/cert.pem`/`certs/key.pem`, covering the real detected LAN IP `192.168.68.118` (not `.119` as an earlier session recorded — the DHCP lease had changed since; worth remembering IPs on this network aren't static).
+
+### Verified before calling it done
+- `tls_available` correctly resolves the real cert/key paths relative to the project root (confirmed directly, not just via the unit test's tmp_path).
+- Simulated the exact startup check against the **actual current `.env`**: TLS now passes (cert exists), but the already-flagged weak `CLR_LOGIN_PASSWORD` (8 chars, from session 8) is still the one thing blocking the next restart — this session's change doesn't introduce a *new* blocker on top of that.
+- **Could not restart the live running server to prove TLS end-to-end** — same Windows `getpass()`-needs-a-real-console limitation from session 5/6: the SSL context is only established once at the initial `uvicorn.run()` call, not re-applied by `--reload` on each hot-reload, so proving this live requires a full process restart, which requires typing the Gmail app password at a real console the user controls. Left for the user to do and confirm.
+
+### Blocked / next session
+- **User must restart the server in their own terminal** to actually activate TLS (and, per the already-standing item, must update `CLR_LOGIN_PASSWORD` in `.env` first or the restart will still fail-fast on that check, unrelated to TLS). After restart: expect a browser security warning on first HTTPS connection (self-signed, not from a public CA) — click through, or import `certs/cert.pem` into the device's trusted store to remove the warning permanently. The LAN URL becomes `https://192.168.68.118:8000/` (not `http://`).
+- This closes the original security plan. Next: re-run `security-review`/`code-review --high` — auth + LAN exposure + login + prompt-injection mitigation + rate limiting + secrets hygiene + TLS together is a completely different threat model than session 3's original "no persistence, no auth" assessment.
+- Standing items unchanged: `advisor.suggest_reductions` empty-batch waste, batch-card expand-to-view, manual-vs-automatic email fetch, frontend storage strategy, dedicated Gmail test account.

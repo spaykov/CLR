@@ -1,4 +1,5 @@
 .env
+certs/
 clr_data.db
 .venv/
 __pycache__/

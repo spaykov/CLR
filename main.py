@@ -52,13 +52,16 @@ MIN_API_KEY_LENGTH = 20
 MIN_LOGIN_PASSWORD_LENGTH = 12
 
 
-def validate_startup_config(host: str, api_key: str, login_password: str) -> None:
+def validate_startup_config(
+    host: str, api_key: str, login_password: str, tls_available: bool = True
+) -> None:
     """Fail fast on an insecure LAN-exposed config, before uvicorn ever binds.
 
-    Weak-secret checks only hard-fail once the server is actually reachable
-    beyond your own machine, mirroring the "a secret must be set at all"
-    check — a short throwaway secret for pure localhost dev isn't this
-    function's business.
+    These checks only hard-fail once the server is actually reachable beyond
+    your own machine — a short throwaway secret, or plain HTTP, for pure
+    localhost dev isn't this function's business. `tls_available` defaults to
+    True so callers that don't care about the TLS check (e.g. existing
+    secrets-only tests) aren't forced to thread it through.
     """
     exposed_beyond_localhost = host not in ("127.0.0.1", "localhost")
     if not exposed_beyond_localhost:
@@ -87,9 +90,25 @@ def validate_startup_config(host: str, api_key: str, login_password: str) -> Non
             "`python scripts/rotate_secrets.py`."
         )
 
+    if not tls_available:
+        raise SystemExit(
+            f"CLR_HOST={host} binds beyond localhost but no TLS certificate "
+            "was found at the configured CLR_TLS_CERT_FILE/CLR_TLS_KEY_FILE "
+            "paths. Plain HTTP on a LAN exposes your login password, session "
+            "cookie, and any Gmail content in transit. Generate one with "
+            "`python scripts/generate_tls_cert.py`, or set CLR_HOST back to "
+            "127.0.0.1."
+        )
+
 
 if __name__ == "__main__":
-    validate_startup_config(settings.host, settings.api_key, settings.login_password)
+    cert_path = pathlib.Path(settings.tls_cert_file)
+    key_path = pathlib.Path(settings.tls_key_file)
+    tls_available = cert_path.exists() and key_path.exists()
+
+    validate_startup_config(
+        settings.host, settings.api_key, settings.login_password, tls_available
+    )
 
     if settings.gmail_address and not settings.gmail_app_password:
         password = getpass.getpass(
@@ -101,10 +120,15 @@ if __name__ == "__main__":
             os.environ["CLR_GMAIL_APP_PASSWORD"] = password
             settings.gmail_app_password = password
 
+    ssl_kwargs = {}
+    if tls_available:
+        ssl_kwargs = {"ssl_keyfile": str(key_path), "ssl_certfile": str(cert_path)}
+
     uvicorn.run(
         "main:app",
         host=settings.host,
         port=settings.port,
         log_level=settings.log_level,
         reload=True,
+        **ssl_kwargs,
     )

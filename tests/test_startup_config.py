@@ -29,3 +29,16 @@ def test_lan_exposure_accepts_strong_secrets():
 
 def test_lan_exposure_accepts_strong_api_key_alone():
     validate_startup_config("0.0.0.0", "a" * 32, "")
+
+
+def test_lan_exposure_requires_tls():
+    with pytest.raises(SystemExit, match="TLS"):
+        validate_startup_config("0.0.0.0", "a" * 32, "", tls_available=False)
+
+
+def test_lan_exposure_accepts_available_tls():
+    validate_startup_config("0.0.0.0", "a" * 32, "", tls_available=True)
+
+
+def test_localhost_does_not_require_tls():
+    validate_startup_config("127.0.0.1", "", "", tls_available=False)

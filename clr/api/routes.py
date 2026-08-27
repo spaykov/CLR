@@ -164,7 +164,7 @@ def health():
 
 
 @public_router.post("/auth/login", dependencies=[Depends(rate_limited(5, 300, by_ip=True))])
-def login(req: LoginRequest, response: Response):
+def login(req: LoginRequest, request: Request, response: Response):
     if not settings.login_password:
         raise HTTPException(status_code=400, detail="Login is not configured")
     if not secrets.compare_digest(req.password, settings.login_password):
@@ -175,6 +175,7 @@ def login(req: LoginRequest, response: Response):
         value=token,
         httponly=True,
         samesite="lax",
+        secure=request.url.scheme == "https",
         max_age=12 * 60 * 60,
         path="/",
     )
