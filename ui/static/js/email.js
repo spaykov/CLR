@@ -97,8 +97,11 @@ export function initEmail() {
       timerEl.classList.add("hidden");
       progressEl.classList.add("hidden");
 
-      const count = result.fetched ?? result.processed?.length ?? 0;
-      statusEl.textContent = `✓ Fetched and processed ${count} email${count !== 1 ? "s" : ""} — check Dashboard and Insights.`;
+      const count = result.processed?.length ?? 0;
+      const skipped = result.skipped_deleted ?? 0;
+      let msg = `✓ Fetched ${result.fetched ?? count} email${(result.fetched ?? count) !== 1 ? "s" : ""}, processed ${count} — check Dashboard and Insights.`;
+      if (skipped > 0) msg += ` (${skipped} previously deleted, skipped.)`;
+      statusEl.textContent = msg;
       statusEl.classList.remove("hidden");
 
       if (result.bandwidth) {

@@ -1,5 +1,5 @@
+import hashlib
 import imaplib
-import uuid
 from datetime import datetime, timedelta, timezone
 from email import message_from_bytes
 from email.message import Message
@@ -75,13 +75,22 @@ def _to_incoming_message(msg: Message, received_at: datetime) -> IncomingMessage
     content = f"{subject}\n\n{body}".strip() if body else subject
 
     return IncomingMessage(
-        id=str(uuid.uuid4()),
+        id=_stable_id(msg, subject, from_addr),
         source=from_addr,
         content=content,
         category=MessageCategory.email,
         received_at=received_at,
         metadata={"subject": subject, "from": from_addr},
     )
+
+
+def _stable_id(msg: Message, subject: str, from_addr: str) -> str:
+    # Message-ID is unique per email and stable across refetches; without it
+    # (rare, but some senders omit it) fall back to a composite of fields that
+    # together identify "the same email" closely enough for dedup purposes.
+    message_id = msg.get("Message-ID") or msg.get("Message-Id")
+    basis = message_id.strip() if message_id else f"{from_addr}|{msg.get('Date', '')}|{subject}"
+    return hashlib.sha256(basis.encode("utf-8", errors="replace")).hexdigest()
 
 
 def _extract_body(msg: Message) -> str:

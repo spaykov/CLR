@@ -88,3 +88,53 @@ def test_clear_history_removes_everything_and_returns_count(tmp_path, monkeypatc
 
     assert storage.clear_history() == 3
     assert storage.get_history() == []
+
+
+def test_delete_processed_tombstones_the_id(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    storage.save_processed(_processed("1"))
+
+    storage.delete_processed("1")
+
+    assert storage.get_deleted_ids(["1"]) == {"1"}
+
+
+def test_delete_processed_missing_id_does_not_tombstone(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+
+    assert storage.delete_processed("does-not-exist") is False
+    assert storage.get_deleted_ids(["does-not-exist"]) == set()
+
+
+def test_clear_history_tombstones_all_cleared_ids(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    for i in range(3):
+        storage.save_processed(_processed(str(i)))
+
+    storage.clear_history()
+
+    assert storage.get_deleted_ids(["0", "1", "2"]) == {"0", "1", "2"}
+
+
+def test_get_deleted_ids_only_matches_requested_ids(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    storage.save_processed(_processed("1"))
+    storage.save_processed(_processed("2"))
+    storage.delete_processed("1")
+    storage.delete_processed("2")
+
+    assert storage.get_deleted_ids(["1"]) == {"1"}
+    assert storage.get_deleted_ids([]) == set()
+
+
+def test_tombstoned_id_can_be_saved_again_directly(tmp_path, monkeypatch):
+    # storage.save_processed itself doesn't enforce tombstones — that's the
+    # caller's job (see /email/fetch filtering deleted ids before processing).
+    # This documents that save_processed is not where resurrection is blocked.
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    storage.save_processed(_processed("1"))
+    storage.delete_processed("1")
+
+    storage.save_processed(_processed("1"))
+
+    assert {item["id"] for item in storage.get_history()} == {"1"}

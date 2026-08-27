@@ -113,13 +113,18 @@ def fetch_email(req: EmailFetchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Email fetch failed: {e}")
 
+    fetched_count = len(messages)
+    deleted_ids = storage.get_deleted_ids([m.id for m in messages])
+    messages = [m for m in messages if m.id not in deleted_ids]
+
     if not messages:
         return {
             "processed": [],
             "bandwidth": {"score": 100, "label": "clear", "active_items": 0, "filtered_items": 0, "high_cost_items": []},
             "predicted_needs": [],
             "suggestions": [],
-            "fetched": 0,
+            "fetched": fetched_count,
+            "skipped_deleted": len(deleted_ids),
         }
 
     results = []
@@ -139,7 +144,8 @@ def fetch_email(req: EmailFetchRequest):
         "bandwidth": report,
         "predicted_needs": needs,
         "suggestions": suggestions_list,
-        "fetched": len(messages),
+        "fetched": fetched_count,
+        "skipped_deleted": len(deleted_ids),
     }
 
 
