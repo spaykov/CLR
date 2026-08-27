@@ -279,3 +279,24 @@ First draft had the router-level default (60/60) and a route's own tighter limit
 
 ### Blocked / next session
 Security plan items remaining: secrets hygiene/rotation, transport security, re-run security-review (now that auth+LAN+login+prompt-injection+rate-limiting are all in place — this is a much bigger cumulative posture change than the original assessment). Also still open: the `advisor.suggest_reductions` empty-batch LLM-call waste noted above, plus everything already queued from prior sessions (batch-card expand-to-view, manual-vs-automatic email fetch, frontend storage strategy, dedicated Gmail test account).
+
+---
+
+## Session 8 — 2026-08-27 (continued)
+
+### Summary
+Implemented secrets hygiene, closing another security-plan item. Scope: verify no prior leaks, give the user a real rotation tool instead of "think up a new string," and fail fast on a weak secret once the server is LAN-exposed — deliberately did *not* build multi-user/per-credential infrastructure, since this is still a single-user tool (the plan's original wording already scoped that as a "grow beyond one person" concern, not now).
+
+### What was built
+- Verified first: `.env` has never been committed (`git log --all --full-history -- .env` empty, not tracked), and `.env.example` already existed with no real secret values — no prior leak to remediate. Grepped for any place a secret might get logged/printed — none found; uvicorn's default access log doesn't include headers or request bodies, so `X-API-Key` and the login POST body were never at risk there either.
+- `scripts/rotate_secrets.py` (new) — generates a fresh `CLR_API_KEY` (`secrets.token_urlsafe(32)`) and a fresh `CLR_LOGIN_PASSWORD` (4-word-plus-digits passphrase, same style as the original, from a 220-word curated list — ~37 bits, comfortably strong against online guessing given `/auth/login`'s rate limit). Run it, paste the value you're rotating into `.env`, restart — sessions are in-memory only, so a restart both invalidates the old secret immediately and logs out every existing browser session.
+- `main.py` — extracted the existing LAN-exposure fail-fast check into a standalone `validate_startup_config(host, api_key, login_password)` function (previously inline in `if __name__ == "__main__":`, untested) and added two more checks to it, all still gated on "only when exposed beyond localhost": `CLR_API_KEY` must be ≥20 characters, `CLR_LOGIN_PASSWORD` must be ≥12, or startup refuses with a message pointing at the new script.
+- `tests/test_startup_config.py` (new) — 6 tests covering: localhost allows anything, LAN exposure requires a secret (existing check, now covered for the first time), and the two new length floors (rejects short, accepts strong, accepts either secret alone). 82/82 passing (was 76; +6).
+
+### Real finding, not just theoretical
+Ran the new check against the actual live `.env` before considering this done, since the server is currently LAN-exposed — and it failed: **`CLR_LOGIN_PASSWORD` is currently 8 characters** (`cactus84`, going by the .env line the user had selected earlier this session), far short of the original 29-character passphrase set in session 4. It must have been manually changed to something weaker at some point without a corresponding log entry — same undocumented-drift pattern as the POP3→IMAP switch noted in session 6's Gmail memory fix. Flagged directly to the user rather than silently editing their `.env`: **the next server restart will now refuse to start** until this is fixed. Did not modify `.env` myself.
+
+### Blocked / next session
+- **User needs to update `CLR_LOGIN_PASSWORD` in `.env` before the next restart** — run `python scripts/rotate_secrets.py` for a fresh one, or pick a 12+ character passphrase of their own.
+- Security plan: transport security (TLS) is the last item, then re-run `security-review`/`code-review --high` given how much the threat model has shifted across sessions 4, 6, 7, and 8.
+- Standing items from prior sessions unchanged: `advisor.suggest_reductions` empty-batch waste, batch-card expand-to-view, manual-vs-automatic email fetch, frontend storage strategy, dedicated Gmail test account.
