@@ -1,5 +1,6 @@
 from openai import OpenAI
 from clr.config import settings
+from clr.core.safety import wrap_untrusted_content
 from clr.models.message import IncomingMessage
 
 
@@ -26,7 +27,7 @@ def predict_needs(messages: list[IncomingMessage], user_context: str = "") -> li
     prompt = f"""You are a cognitive assistant. Based on these recent incoming items, predict what the user actually needs to know or do right now.{context_block}
 
 Incoming items:
-{content_block}
+{wrap_untrusted_content(content_block)}
 
 List up to 5 specific, actionable insights or needs (one per line). Be concise."""
 

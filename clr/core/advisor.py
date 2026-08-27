@@ -1,5 +1,6 @@
 from openai import OpenAI
 from clr.config import settings
+from clr.core.safety import wrap_untrusted_content
 from clr.models.message import ProcessedMessage
 
 
@@ -26,7 +27,7 @@ def suggest_reductions(messages: list[ProcessedMessage], score: int) -> list[str
     prompt = f"""You are a cognitive load advisor. The user's mental bandwidth score is {score}/100 ({_label(score)}).
 
 High-cost active items:
-{summary_lines or '(none)'}
+{wrap_untrusted_content(summary_lines) if summary_lines else '(none)'}
 
 Suggest 3–5 practical, specific actions the user can take right now to reduce cognitive load.
 Each suggestion should be one short sentence. Output one per line."""
