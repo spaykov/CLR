@@ -252,3 +252,30 @@ This is explicitly labeled best-effort throughout the code (docstrings on both `
 
 ### Blocked / next session
 Security plan items remaining: rate limiting, secrets hygiene/rotation, transport security, re-run security-review now that auth+LAN+login+prompt-injection mitigation are all in place. Plus the standing product/UX items (batch-card expand-to-view, manual-vs-automatic email fetch, frontend storage strategy) and the Gmail-account-lockout follow-up (set up a dedicated test account) from earlier this session.
+
+---
+
+## Session 7 — 2026-08-27
+
+### Summary
+Implemented rate limiting on `/api/v1/*`, closing another item from the security plan. In-memory sliding-window limiter, no new dependency.
+
+### What was built
+- `clr/core/rate_limit.py` (new) — `allow(key, limit, window_seconds)`: sliding-window check backed by a `dict[str, deque[float]]` of per-key hit timestamps, pruned lazily on each call. In-memory only, same tradeoff already accepted for `clr/core/sessions.py` (resets on restart; fine for a single-process local/LAN tool). `reset()` for test isolation.
+- `clr/api/rate_limit.py` (new) — `rate_limited(limit, window_seconds, by_ip=False)`, a FastAPI dependency factory. Identity for the budget is API key > session cookie > client IP, in that order (`by_ip=True` forces IP-only, used for pre-auth endpoints so an attacker can't dodge the limit by varying/omitting the cookie). Raises `429` with a `Retry-After` header on rejection.
+- `clr/api/routes.py` — layered limits:
+  - Router-level default for all of `/api/v1/*` (except `/health`, which stays exempt like it already was for auth): **60 requests/60s** per identity.
+  - `/process/batch`: additional **10/60s** (LLM-cost-heavy).
+  - `/email/fetch`: additional **5/300s** (LLM + real Gmail cost — also directly motivated by this session's earlier Gmail-lockout incident; a runaway fetch loop is exactly the kind of thing that got two accounts locked).
+  - `/auth/login`: **5/300s**, `by_ip=True` (brute-force protection on the login password, independent of session state since there isn't one yet).
+- `tests/conftest.py` (new) — autouse fixture resetting rate-limit state before every test; without it, the whole suite (running in one process, finishing in ~1.5s) would share hit counters across files and start tripping its own limits.
+- New tests: `test_rate_limit.py` (4, core sliding-window logic with mocked `time.monotonic`), `test_rate_limit_routes.py` (4, FastAPI-level: login throttling, tighter-than-default limit on `/process/batch`, default limit on an arbitrary route, independent budgets across two logged-in sessions). 76/76 passing (was 68; +8).
+
+### Bug caught by testing, fixed same session
+First draft had the router-level default (60/60) and a route's own tighter limit (e.g. `/process/batch`'s 10/60) computing the **same bucket key** (`path + identity`, no limit/window in the key) — so both dependencies incremented the same shared counter, meaning each real request consumed *two* slots. Caught immediately because `test_process_batch_has_a_tighter_limit_than_the_default` failed partway through 10 supposedly-good calls instead of on the intended 11th. Fixed by folding `limit`/`window_seconds` into the bucket key so stacked dependencies on the same route track independently. Verified against the actual running server afterward (not just the test suite): 12 real calls to `/process/batch` — first 10 returned 200, 11th and 12th returned 429 with `Retry-After: 60`.
+
+### Also caught while testing (unrelated pre-existing issue, not fixed — noted for later)
+`clr/core/advisor.py`'s `suggest_reductions` calls the LLM unconditionally, even for a completely empty message batch — `POST /process/batch` with `{"messages": []}` still burns one real Ollama call. Made the new rate-limit tests slow/network-dependent until mocked out; didn't fix in `advisor.py` itself since it's an efficiency issue orthogonal to rate limiting, not a bug this session was scoped to touch.
+
+### Blocked / next session
+Security plan items remaining: secrets hygiene/rotation, transport security, re-run security-review (now that auth+LAN+login+prompt-injection+rate-limiting are all in place — this is a much bigger cumulative posture change than the original assessment). Also still open: the `advisor.suggest_reductions` empty-batch LLM-call waste noted above, plus everything already queued from prior sessions (batch-card expand-to-view, manual-vs-automatic email fetch, frontend storage strategy, dedicated Gmail test account).

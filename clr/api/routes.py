@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from clr.api.auth import SESSION_COOKIE_NAME, require_api_key
+from clr.api.rate_limit import rate_limited
 from clr.config import settings
 from clr.models.message import IncomingMessage, ProcessedMessage
 from clr.models.notification import Notification
@@ -12,8 +13,10 @@ from clr.models.task import DecisionTask
 from clr.core import filter, rewriter, summarizer, predictor, decision_handler, bandwidth_score, advisor, storage, sessions
 
 # /health is intentionally excluded from require_api_key so monitoring/load
-# balancers can probe liveness without a key.
-router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_api_key)])
+# balancers can probe liveness without a key. A default per-client rate limit
+# applies to every other /api/v1/* route; the expensive ones (LLM/Gmail-
+# backed) get a tighter limit added on top via the route's own dependencies.
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_api_key), Depends(rate_limited(60, 60))])
 public_router = APIRouter(prefix="/api/v1")
 
 # Set once at import time; changes whenever uvicorn --reload restarts the
@@ -59,7 +62,7 @@ def process_message(req: ProcessRequest):
     return processed
 
 
-@router.post("/process/batch")
+@router.post("/process/batch", dependencies=[Depends(rate_limited(10, 60))])
 def process_batch(req: BatchProcessRequest):
     """Process multiple messages and return bandwidth report."""
     results = []
@@ -102,7 +105,7 @@ def decide(req: DecisionRequest):
     return decision_handler.handle_decision(req.task)
 
 
-@router.post("/email/fetch")
+@router.post("/email/fetch", dependencies=[Depends(rate_limited(5, 300))])
 def fetch_email(req: EmailFetchRequest):
     """Fetch Gmail emails from the last N hours and run them through the batch pipeline."""
     from clr.core import email_fetcher
@@ -160,7 +163,7 @@ def health():
     return {"status": "ok"}
 
 
-@public_router.post("/auth/login")
+@public_router.post("/auth/login", dependencies=[Depends(rate_limited(5, 300, by_ip=True))])
 def login(req: LoginRequest, response: Response):
     if not settings.login_password:
         raise HTTPException(status_code=400, detail="Login is not configured")
