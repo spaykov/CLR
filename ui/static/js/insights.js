@@ -25,7 +25,7 @@ function historyRowHtml(item) {
         <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${badge}">${p.toUpperCase()}</span>
         <span class="text-xs text-slate-400">${escapeHtml(item.source)}</span>
         ${item.filtered_out ? `<span class="text-xs text-slate-300 italic">filtered</span>` : ""}
-        <span class="text-xs text-slate-300 ml-auto">${new Date(item.processed_at).toLocaleString()}</span>
+        <span class="text-xs text-slate-300 ml-auto" title="Time the message itself was sent/received">${item.received_at ? new Date(item.received_at).toLocaleString() : "—"}</span>
         <button class="history-delete-btn text-slate-300 hover:text-red-500 text-sm leading-none ml-2" title="Delete this entry">&times;</button>
       </div>
       <p class="text-sm text-slate-700">${escapeHtml(item.summary || item.filter_reason || "(no summary)")}</p>
@@ -34,7 +34,8 @@ function historyRowHtml(item) {
         ${item.filter_reason ? `<p><span class="font-medium">Filter reason:</span> ${escapeHtml(item.filter_reason)}</p>` : ""}
         ${item.suggested_action ? `<p><span class="font-medium">Suggested action:</span> ${escapeHtml(item.suggested_action)}</p>` : ""}
         <p><span class="font-medium">Category:</span> ${escapeHtml(item.category)} · <span class="font-medium">Cognitive cost:</span> ${item.cognitive_cost ?? 0}/10</p>
-        <p><span class="font-medium">Received:</span> ${item.received_at ? new Date(item.received_at).toLocaleString() : "—"}</p>
+        <p><span class="font-medium">Processed (retrieved):</span> ${item.processed_at ? new Date(item.processed_at).toLocaleString() : "—"}</p>
+        <p class="text-slate-400 italic">Original message content isn't stored in history (privacy) — it's only viewable right after a fetch, in the "Processed Messages" list below a batch run.</p>
       </div>
     </div>`;
 }
@@ -192,14 +193,21 @@ export function initInsights() {
       const cards = processed.map(msg => {
         const p = (msg.priority ?? "low").toLowerCase();
         const badge = PRIORITY_BADGE[p] ?? PRIORITY_BADGE.low;
+        const receivedAt = msg.original?.received_at ? new Date(msg.original.received_at).toLocaleString() : "—";
         return `
           <div class="border-b border-slate-100 py-3 last:border-0">
             <div class="flex items-center gap-2 mb-1">
               <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${badge}">${p.toUpperCase()}</span>
               <span class="text-xs text-slate-400">${escapeHtml(msg.original?.source)}</span>
               ${msg.filtered_out ? `<span class="text-xs text-slate-300 italic">filtered</span>` : ""}
+              <span class="text-xs text-slate-300 ml-auto" title="Time the message itself was sent/received">${receivedAt}</span>
             </div>
             <p class="text-sm text-slate-700">${escapeHtml(msg.summary || msg.original?.content)}</p>
+            ${msg.original?.content ? `
+            <details class="mt-1">
+              <summary class="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-600">Show original content</summary>
+              <p class="mt-1 text-xs text-slate-600 whitespace-pre-wrap break-words pl-2 border-l border-slate-100">${escapeHtml(msg.original.content)}</p>
+            </details>` : ""}
           </div>`;
       }).join("");
       container.insertAdjacentHTML("beforeend", `

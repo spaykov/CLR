@@ -1,7 +1,12 @@
 from openai import OpenAI
 from clr.config import settings
 from clr.core.json_utils import extract_json_object
-from clr.core.safety import is_likely_prompt_injection, is_safety_critical, wrap_untrusted_content
+from clr.core.safety import (
+    is_likely_prompt_injection,
+    is_safety_critical,
+    is_security_alert,
+    wrap_untrusted_content,
+)
 from clr.models.message import IncomingMessage, ProcessedMessage, Priority
 from clr.models.notification import Notification, FilteredNotification
 
@@ -26,6 +31,21 @@ def filter_message(message: IncomingMessage) -> ProcessedMessage:
             filtered_out=False,
             filter_reason="Safety override: message matches an emergency/evacuation pattern.",
             cognitive_cost=10,
+        )
+
+    if is_security_alert(message.content):
+        return ProcessedMessage(
+            original=message,
+            priority=Priority.high,
+            action_required=True,
+            filtered_out=False,
+            filter_reason=(
+                "Security override: message matches an account-security alert "
+                "pattern (e.g. new sign-in, password change). Kept visible at "
+                "high priority regardless of model judgment, since these "
+                "should never be silently downgraded."
+            ),
+            cognitive_cost=7,
         )
 
     if is_likely_prompt_injection(message.content):

@@ -1,4 +1,9 @@
-from clr.core.safety import is_likely_prompt_injection, is_safety_critical, wrap_untrusted_content
+from clr.core.safety import (
+    is_likely_prompt_injection,
+    is_safety_critical,
+    is_security_alert,
+    wrap_untrusted_content,
+)
 
 
 def test_detects_evacuation():
@@ -35,6 +40,19 @@ def test_ignores_routine_content_for_injection():
     assert not is_likely_prompt_injection("Please review the attached quarterly report")
     assert not is_likely_prompt_injection("Reminder: team lunch at noon")
     assert not is_likely_prompt_injection("50% OFF TODAY ONLY!!!")
+
+
+def test_detects_security_alert_phrasing():
+    assert is_security_alert("We noticed a new sign-in to your Google Account on a Windows device.")
+    assert is_security_alert("Your Google Account password was changed just now.")
+    assert is_security_alert("Security alert: a new device was linked to your account.")
+    assert is_security_alert("Someone just used your password to try to sign in.")
+
+
+def test_ignores_routine_content_for_security_alert():
+    assert not is_security_alert("Please review the attached quarterly report")
+    assert not is_security_alert("Reminder: team lunch at noon")
+    assert not is_security_alert("50% OFF TODAY ONLY!!!")
 
 
 def test_wrap_untrusted_content_delimits_and_preserves_text():

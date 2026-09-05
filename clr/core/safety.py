@@ -26,6 +26,35 @@ def is_safety_critical(content: str) -> bool:
     return bool(_SAFETY_PATTERN.search(content))
 
 
+_SECURITY_ALERT_PATTERN = re.compile(
+    r"new sign-?in"
+    r"|suspicious sign-?in"
+    r"|sign-?in attempt"
+    r"|security alert"
+    r"|unauthorized access"
+    r"|unusual activity (?:on|in) your account"
+    r"|someone (?:has |just )?(?:used|tried) your password"
+    r"|password (?:was|has been) changed"
+    r"|password reset (?:was|has been) requested"
+    r"|new device (?:signed in|linked|added)"
+    r"|verify it(?:'|’)?s you"
+    r"|account recovery (?:request|attempt)"
+    r"|2-step verification (?:was|has been) turned (?:on|off)",
+    re.IGNORECASE,
+)
+
+
+def is_security_alert(content: str) -> bool:
+    """Detect content describing an account-security event (new sign-in,
+    password change, etc.).
+
+    Acts as a deterministic backstop for the LLM filter: these alerts must
+    never be silently downgraded to low priority just because they lack the
+    physical-danger language `is_safety_critical` looks for.
+    """
+    return bool(_SECURITY_ALERT_PATTERN.search(content))
+
+
 _INJECTION_PATTERN = re.compile(
     r"ignore (?:all |any )?(?:previous|prior|above|earlier) instructions"
     r"|disregard (?:all |any )?(?:previous|prior|above|earlier)"
