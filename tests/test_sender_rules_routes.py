@@ -39,3 +39,25 @@ def test_delete_sender_rule(client):
 def test_delete_sender_rule_missing_returns_404(client):
     resp = client.delete("/api/v1/sender-rules/999")
     assert resp.status_code == 404
+
+
+def test_update_sender_rule(client):
+    created = client.post("/api/v1/sender-rules", json={"pattern": "thebatch@deeplearning.ai", "action": "ignore"}).json()
+
+    resp = client.put(f"/api/v1/sender-rules/{created['id']}", json={"pattern": "deeplearning.ai", "action": "digest"})
+    assert resp.status_code == 200
+
+    items = client.get("/api/v1/sender-rules").json()["items"]
+    assert items == [{"id": created["id"], "pattern": "deeplearning.ai", "action": "digest", "created_at": created["created_at"]}]
+
+
+def test_update_sender_rule_missing_returns_404(client):
+    resp = client.put("/api/v1/sender-rules/999", json={"pattern": "example.com", "action": "digest"})
+    assert resp.status_code == 404
+
+
+def test_update_sender_rule_rejects_invalid_action(client):
+    created = client.post("/api/v1/sender-rules", json={"pattern": "example.com", "action": "ignore"}).json()
+
+    resp = client.put(f"/api/v1/sender-rules/{created['id']}", json={"pattern": "example.com", "action": "block"})
+    assert resp.status_code == 422

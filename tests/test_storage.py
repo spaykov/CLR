@@ -164,6 +164,22 @@ def test_delete_sender_rule_missing_id_returns_false(tmp_path, monkeypatch):
     assert storage.delete_sender_rule(999) is False
 
 
+def test_update_sender_rule_changes_pattern_and_action(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    rule = storage.add_sender_rule("thebatch@deeplearning.ai", "ignore")
+
+    assert storage.update_sender_rule(rule["id"], "deeplearning.ai", "digest") is True
+
+    updated = storage.list_sender_rules()[0]
+    assert updated["pattern"] == "deeplearning.ai"
+    assert updated["action"] == "digest"
+
+
+def test_update_sender_rule_missing_id_returns_false(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    assert storage.update_sender_rule(999, "example.com", "digest") is False
+
+
 def test_tombstoned_id_can_be_saved_again_directly(tmp_path, monkeypatch):
     # storage.save_processed itself doesn't enforce tombstones — that's the
     # caller's job (see /email/fetch filtering deleted ids before processing).

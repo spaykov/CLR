@@ -158,6 +158,19 @@ def list_sender_rules() -> list[dict]:
         conn.close()
 
 
+def update_sender_rule(rule_id: int, pattern: str, action: str) -> bool:
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "UPDATE sender_rules SET pattern = ?, action = ? WHERE id = ?",
+            (pattern, action, rule_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def delete_sender_rule(rule_id: int) -> bool:
     conn = _connect()
     try:

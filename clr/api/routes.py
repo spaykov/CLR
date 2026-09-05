@@ -235,6 +235,13 @@ def add_sender_rule(req: SenderRuleRequest):
     return storage.add_sender_rule(req.pattern, req.action)
 
 
+@router.put("/sender-rules/{rule_id}")
+def update_sender_rule(rule_id: int, req: SenderRuleRequest):
+    if not storage.update_sender_rule(rule_id, req.pattern, req.action):
+        raise HTTPException(status_code=404, detail="Rule not found")
+    return {"ok": True}
+
+
 @router.delete("/sender-rules/{rule_id}")
 def delete_sender_rule(rule_id: int):
     if not storage.delete_sender_rule(rule_id):
