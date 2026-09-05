@@ -38,12 +38,24 @@ CREATE TABLE IF NOT EXISTS deleted_message_ids (
 )
 """
 
+# Deterministic sender-level overrides, checked by clr.core.filter before the
+# LLM classification call (see clr/core/sender_rules.py).
+_SENDER_RULES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS sender_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('ignore', 'digest')),
+    created_at TEXT NOT NULL
+)
+"""
+
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute(_SCHEMA)
     conn.execute(_DELETED_SCHEMA)
+    conn.execute(_SENDER_RULES_SCHEMA)
     return conn
 
 
@@ -119,6 +131,39 @@ def clear_history() -> int:
         cur = conn.execute("DELETE FROM processed_messages")
         conn.commit()
         return cur.rowcount
+    finally:
+        conn.close()
+
+
+def add_sender_rule(pattern: str, action: str) -> dict:
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "INSERT INTO sender_rules (pattern, action, created_at) VALUES (?, ?, ?)",
+            (pattern, action, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sender_rules WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+    finally:
+        conn.close()
+
+
+def list_sender_rules() -> list[dict]:
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT * FROM sender_rules ORDER BY created_at").fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def delete_sender_rule(rule_id: int) -> bool:
+    conn = _connect()
+    try:
+        cur = conn.execute("DELETE FROM sender_rules WHERE id = ?", (rule_id,))
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 

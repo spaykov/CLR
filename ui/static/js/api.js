@@ -107,3 +107,15 @@ export async function deleteHistoryItem(id) {
 export async function clearHistory() {
   return del("/history");
 }
+
+export async function getSenderRules() {
+  return get("/sender-rules");
+}
+
+export async function addSenderRule(pattern, action) {
+  return post("/sender-rules", { pattern, action });
+}
+
+export async function deleteSenderRule(id) {
+  return del(`/sender-rules/${encodeURIComponent(id)}`);
+}

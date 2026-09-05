@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 from clr.core.filter import filter_message, filter_notification
+from clr.core import storage
 from clr.models.message import IncomingMessage, MessageCategory
 from clr.models.notification import Notification
 
@@ -83,6 +84,52 @@ def test_filter_message_security_alert_override(mock_client):
     assert result.priority.value == "high"
     assert result.action_required is True
     assert "Security override" in result.filter_reason
+    mock_client.assert_not_called()
+
+
+@patch("clr.core.filter._get_client")
+def test_filter_message_sender_rule_ignore_override(mock_client, tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    storage.add_sender_rule("spam.example.com", "ignore")
+
+    result = filter_message(_make_message(source="promo@spam.example.com", content="Buy now!"))
+
+    assert result.filtered_out
+    assert result.priority.value == "low"
+    assert result.cognitive_cost == 0
+    assert "Sender rule" in result.filter_reason
+    mock_client.assert_not_called()
+
+
+@patch("clr.core.filter._get_client")
+def test_filter_message_sender_rule_digest_override(mock_client, tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    storage.add_sender_rule("deeplearning.ai", "digest")
+
+    result = filter_message(_make_message(
+        source='"The Batch @ DeepLearning.AI" <thebatch@deeplearning.ai>',
+        content="This week in AI...",
+    ))
+
+    assert not result.filtered_out
+    assert result.priority.value == "low"
+    assert result.action_required is False
+    assert "Sender rule" in result.filter_reason
+    mock_client.assert_not_called()
+
+
+@patch("clr.core.filter._get_client")
+def test_filter_message_safety_override_beats_sender_rule_ignore(mock_client, tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    storage.add_sender_rule("spam.example.com", "ignore")
+
+    result = filter_message(_make_message(
+        source="promo@spam.example.com",
+        content="Everybody needs to leave the building right now",
+    ))
+
+    assert not result.filtered_out
+    assert result.priority.value == "critical"
     mock_client.assert_not_called()
 
 

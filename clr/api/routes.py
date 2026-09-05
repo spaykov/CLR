@@ -47,6 +47,10 @@ class DecisionRequest(BaseModel):
 class EmailFetchRequest(BaseModel):
     hours: int = Field(24, ge=1, le=168)
 
+class SenderRuleRequest(BaseModel):
+    pattern: str = Field(..., min_length=1)
+    action: str = Field(..., pattern="^(ignore|digest)$")
+
 class LoginRequest(BaseModel):
     password: str
 
@@ -219,3 +223,20 @@ def delete_history_item(message_id: str):
 @router.delete("/history")
 def clear_all_history():
     return {"ok": True, "deleted": storage.clear_history()}
+
+
+@router.get("/sender-rules")
+def list_sender_rules():
+    return {"items": storage.list_sender_rules()}
+
+
+@router.post("/sender-rules")
+def add_sender_rule(req: SenderRuleRequest):
+    return storage.add_sender_rule(req.pattern, req.action)
+
+
+@router.delete("/sender-rules/{rule_id}")
+def delete_sender_rule(rule_id: int):
+    if not storage.delete_sender_rule(rule_id):
+        raise HTTPException(status_code=404, detail="Rule not found")
+    return {"ok": True}

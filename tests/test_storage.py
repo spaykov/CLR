@@ -127,6 +127,43 @@ def test_get_deleted_ids_only_matches_requested_ids(tmp_path, monkeypatch):
     assert storage.get_deleted_ids([]) == set()
 
 
+def test_add_and_list_sender_rules(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+
+    storage.add_sender_rule("deeplearning.ai", "digest")
+    storage.add_sender_rule("spam.example.com", "ignore")
+
+    rules = storage.list_sender_rules()
+    assert {(r["pattern"], r["action"]) for r in rules} == {
+        ("deeplearning.ai", "digest"),
+        ("spam.example.com", "ignore"),
+    }
+
+
+def test_add_sender_rule_returns_the_created_row(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+
+    rule = storage.add_sender_rule("deeplearning.ai", "digest")
+    assert rule["pattern"] == "deeplearning.ai"
+    assert rule["action"] == "digest"
+    assert "id" in rule
+
+
+def test_delete_sender_rule_removes_only_that_rule(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    r1 = storage.add_sender_rule("a.com", "digest")
+    r2 = storage.add_sender_rule("b.com", "ignore")
+
+    assert storage.delete_sender_rule(r1["id"]) is True
+    remaining = {r["id"] for r in storage.list_sender_rules()}
+    assert remaining == {r2["id"]}
+
+
+def test_delete_sender_rule_missing_id_returns_false(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    assert storage.delete_sender_rule(999) is False
+
+
 def test_tombstoned_id_can_be_saved_again_directly(tmp_path, monkeypatch):
     # storage.save_processed itself doesn't enforce tombstones — that's the
     # caller's job (see /email/fetch filtering deleted ids before processing).

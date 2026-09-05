@@ -167,7 +167,7 @@
       </div>
 
       <!-- Setup instructions (always visible until configured) -->
-      <div id="email-setup-instructions" class="bg-slate-50 rounded-xl border border-slate-100 p-5">
+      <div id="email-setup-instructions" class="bg-slate-50 rounded-xl border border-slate-100 p-5 mb-4">
         <p class="font-medium text-slate-600 text-sm mb-3">Setup — one time only:</p>
         <ol class="list-decimal list-inside space-y-2 text-xs text-slate-500">
           <li>Turn on <strong>2-Step Verification</strong> on your Google account (myaccount.google.com/security)</li>
@@ -179,6 +179,34 @@
           <li>Run <strong>python main.py</strong> from a terminal and enter the app password when prompted (it's never written to disk)</li>
           <li>Once the server is running, click <strong>Check Connection</strong> above</li>
         </ol>
+      </div>
+
+      <!-- Sender Rules -->
+      <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+        <h2 class="text-base font-semibold text-slate-700 mb-1">Sender Rules</h2>
+        <p class="text-xs text-slate-400 mb-4">Override the filter for specific senders. <strong>Ignore</strong> skips a sender entirely (no summary, no LLM call). <strong>Digest</strong> always summarizes a sender's messages but never flags them as needing attention — good for newsletters you want condensed but not surfaced.</p>
+        <div id="sender-rule-error" class="hidden bg-red-50 border border-red-300 text-red-800 rounded-lg p-3 text-sm mb-3"></div>
+        <form id="sender-rule-form" class="flex flex-wrap items-end gap-2 mb-4">
+          <div class="flex-1 min-w-[180px]">
+            <label class="text-xs font-medium text-slate-500 block mb-1">Sender pattern</label>
+            <input id="sender-rule-pattern" type="text" placeholder="e.g. deeplearning.ai"
+              class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-500 block mb-1">Action</label>
+            <select id="sender-rule-action"
+              class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="digest">Digest</option>
+              <option value="ignore">Ignore</option>
+            </select>
+          </div>
+          <button id="sender-rule-submit" type="submit"
+            class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">
+            Add
+          </button>
+        </form>
+        <p id="sender-rule-empty" class="text-sm text-slate-400">No sender rules yet.</p>
+        <div id="sender-rule-list"></div>
       </div>
     </section>
 
