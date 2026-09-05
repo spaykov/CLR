@@ -185,5 +185,10 @@ if __name__ == "__main__":
         port=settings.port,
         log_level=settings.log_level,
         reload=True,
+        # uvicorn's --reload only watches *.py by default. ".env" must be the
+        # exact literal pattern (no wildcard) to bypass its default dotfile
+        # exclude (".*") — see uvicorn's FileFilter.__call__ early-return on
+        # an exact suffix match. The others are plain glob additions.
+        reload_includes=[".env", "*.html", "*.js", "*.css"],
         **ssl_kwargs,
     )

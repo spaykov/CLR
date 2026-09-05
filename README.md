@@ -51,6 +51,13 @@ python main.py
 
 Then open `http://localhost:8000`.
 
+`python main.py` runs uvicorn with `--reload` and auto-restarts on changes to
+`.py`, `.env`, `.html`, `.js`, and `.css` files — not just Python — so editing
+config, templates, or frontend JS also takes effect without a manual restart.
+Two things still need a full manual restart (stop and re-run `python main.py`):
+the Gmail app-password prompt only runs once at process start, and any file
+type outside that list won't trigger a reload at all.
+
 ## Testing
 
 ```bash
