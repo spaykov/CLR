@@ -41,6 +41,8 @@ The Email tab fetches your inbox over IMAP (read-only) using a Gmail **app passw
 4. Set `CLR_GMAIL_ADDRESS` in `.env`
 5. Run `python main.py` — it will prompt for the app password at the terminal (never written to disk)
 
+Once configured, CLR fetches new mail automatically in the background (every 15 minutes by default) — the Fetch Emails button in the Email tab still works for an on-demand check. Tune this with `CLR_AUTO_FETCH_ENABLED` (`true`/`false`) and `CLR_AUTO_FETCH_INTERVAL_MINUTES` in `.env`.
+
 ## Running
 
 ```bash

@@ -108,54 +108,37 @@ def decide(req: DecisionRequest):
 @router.post("/email/fetch", dependencies=[Depends(rate_limited(5, 300))])
 def fetch_email(req: EmailFetchRequest):
     """Fetch Gmail emails from the last N hours and run them through the batch pipeline."""
-    from clr.core import email_fetcher
+    from clr.core import email_pipeline
     try:
-        messages = email_fetcher.fetch_emails(hours=req.hours)
+        return email_pipeline.run_email_fetch(hours=req.hours)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Email fetch failed: {e}")
 
-    fetched_count = len(messages)
-    deleted_ids = storage.get_deleted_ids([m.id for m in messages])
-    messages = [m for m in messages if m.id not in deleted_ids]
-
-    if not messages:
-        return {
-            "processed": [],
-            "bandwidth": {"score": 100, "label": "clear", "active_items": 0, "filtered_items": 0, "high_cost_items": []},
-            "predicted_needs": [],
-            "suggestions": [],
-            "fetched": fetched_count,
-            "skipped_deleted": len(deleted_ids),
-        }
-
-    results = []
-    for msg in messages:
-        p = filter.filter_message(msg)
-        p = summarizer.summarize(p)
-        p = rewriter.rewrite(p)
-        storage.save_processed(p)
-        results.append(p)
-
-    report = bandwidth_score.bandwidth_report(results)
-    suggestions_list = advisor.suggest_reductions(results, report["score"])
-    needs = predictor.predict_needs(messages)
-
-    return {
-        "processed": results,
-        "bandwidth": report,
-        "predicted_needs": needs,
-        "suggestions": suggestions_list,
-        "fetched": fetched_count,
-        "skipped_deleted": len(deleted_ids),
-    }
-
 
 @router.get("/email/status")
 def email_status():
     from clr.core import email_fetcher
-    return {"configured": email_fetcher.has_credentials()}
+    last_fetched = storage.get_last_auto_fetch_at()
+    return {
+        "configured": email_fetcher.has_credentials(),
+        "auto_fetch_enabled": settings.auto_fetch_enabled,
+        "auto_fetch_interval_minutes": settings.auto_fetch_interval_minutes,
+        "last_fetched_at": last_fetched.isoformat() if last_fetched else None,
+    }
+
+
+@router.get("/priority-list")
+def priority_list(limit: int = Query(20, ge=1, le=100)):
+    return {"items": storage.get_priority_items(limit)}
+
+
+@router.post("/history/{message_id}/acknowledge")
+def acknowledge_history_item(message_id: str):
+    if not storage.acknowledge_processed(message_id):
+        raise HTTPException(status_code=404, detail="Message not found")
+    return {"ok": True}
 
 
 @public_router.get("/health")

@@ -107,3 +107,11 @@ export async function deleteHistoryItem(id) {
 export async function clearHistory() {
   return del("/history");
 }
+
+export async function getPriorityList(limit = 20) {
+  return get(`/priority-list?limit=${limit}`);
+}
+
+export async function acknowledgeItem(id) {
+  return post(`/history/${encodeURIComponent(id)}/acknowledge`, {});
+}

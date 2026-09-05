@@ -37,12 +37,27 @@ function showConnected() {
 function showDisconnected() {
   document.getElementById("email-connect-section").classList.remove("hidden");
   document.getElementById("email-fetch-section").classList.add("hidden");
+  document.getElementById("email-auto-fetch-status").textContent = "";
+}
+
+function renderAutoFetchStatus(data) {
+  const el = document.getElementById("email-auto-fetch-status");
+  if (!data.auto_fetch_enabled) {
+    el.textContent = "Auto-fetch is disabled (CLR_AUTO_FETCH_ENABLED=false) — use Fetch Emails below to check manually.";
+    return;
+  }
+  const last = data.last_fetched_at ? new Date(data.last_fetched_at).toLocaleTimeString() : "not yet run";
+  el.textContent = `Auto-fetching every ${data.auto_fetch_interval_minutes} min · last checked ${last}`;
 }
 
 export function initEmail() {
   getEmailStatus().then(data => {
-    if (data.configured) showConnected();
-    else showDisconnected();
+    if (data.configured) {
+      showConnected();
+      renderAutoFetchStatus(data);
+    } else {
+      showDisconnected();
+    }
   }).catch(() => showDisconnected());
 
   // Recheck button
@@ -53,9 +68,10 @@ export function initEmail() {
     btn.disabled = true;
     btn.textContent = "Checking...";
     try {
-      const { configured } = await getEmailStatus();
-      if (configured) {
+      const data = await getEmailStatus();
+      if (data.configured) {
         showConnected();
+        renderAutoFetchStatus(data);
       } else {
         errorEl.innerHTML = `
           <p class="font-medium">Not configured yet.</p>

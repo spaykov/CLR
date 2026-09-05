@@ -1,6 +1,12 @@
+import asyncio
 import getpass
+import logging
+import math
 import os
 import pathlib
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -11,11 +17,60 @@ from clr.config import settings
 from clr.core import sessions
 
 BASE_DIR = pathlib.Path(__file__).parent
+logger = logging.getLogger("clr.auto_fetch")
+
+AUTO_FETCH_STARTUP_DELAY_SECONDS = 10
+
+
+async def run_auto_fetch_once() -> None:
+    """One iteration of the background auto-fetch: compute how far back to
+    look from the last watermark, run the pipeline, advance the watermark.
+
+    Kept separate from the sleep loop below so it's unit-testable without
+    waiting on a timer.
+    """
+    from clr.core import email_fetcher, email_pipeline, storage
+
+    if not email_fetcher.has_credentials():
+        return
+
+    last_fetched = storage.get_last_auto_fetch_at()
+    if last_fetched is None:
+        hours = settings.auto_fetch_lookback_hours
+    else:
+        gap_hours = (datetime.now(timezone.utc) - last_fetched).total_seconds() / 3600
+        hours = max(1, math.ceil(gap_hours) + 1)
+
+    try:
+        result = await asyncio.to_thread(email_pipeline.run_email_fetch, hours)
+        storage.set_last_auto_fetch_at(datetime.now(timezone.utc))
+        logger.info("Auto-fetch processed %d email(s)", len(result.get("processed", [])))
+    except Exception:
+        logger.exception("Auto-fetch failed")
+
+
+async def _auto_fetch_loop() -> None:
+    await asyncio.sleep(AUTO_FETCH_STARTUP_DELAY_SECONDS)
+    while True:
+        await run_auto_fetch_once()
+        await asyncio.sleep(settings.auto_fetch_interval_minutes * 60)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = None
+    if settings.auto_fetch_enabled:
+        task = asyncio.create_task(_auto_fetch_loop())
+    yield
+    if task:
+        task.cancel()
+
 
 app = FastAPI(
     title="Cognitive Load Reducer",
     description="AI-powered cognitive firewall that reduces mental overhead.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.mount(
