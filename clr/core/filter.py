@@ -1,6 +1,7 @@
 from openai import OpenAI
 from clr.config import settings
 from clr.core.json_utils import extract_json_object
+from clr.core.sender_rules import match_sender_rule
 from clr.core.safety import (
     is_likely_prompt_injection,
     is_safety_critical,
@@ -48,6 +49,17 @@ def filter_message(message: IncomingMessage) -> ProcessedMessage:
             cognitive_cost=7,
         )
 
+    rule = match_sender_rule(message.source)
+    if rule and rule["action"] == "ignore":
+        return ProcessedMessage(
+            original=message,
+            priority=Priority.low,
+            action_required=False,
+            filtered_out=True,
+            filter_reason=f"Sender rule: always ignored ({rule['pattern']}).",
+            cognitive_cost=0,
+        )
+
     if is_likely_prompt_injection(message.content):
         return ProcessedMessage(
             original=message,
@@ -61,6 +73,19 @@ def filter_message(message: IncomingMessage) -> ProcessedMessage:
                 "manually before trusting anything it suggests."
             ),
             cognitive_cost=7,
+        )
+
+    if rule and rule["action"] == "digest":
+        return ProcessedMessage(
+            original=message,
+            priority=Priority.low,
+            action_required=False,
+            filtered_out=False,
+            filter_reason=(
+                f"Sender rule: digest ({rule['pattern']}) — always summarized, "
+                "never flagged as needing attention."
+            ),
+            cognitive_cost=1,
         )
 
     prompt = f"""You are a cognitive firewall. Evaluate this incoming message and decide if it needs the user's attention.
