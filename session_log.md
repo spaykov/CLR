@@ -339,3 +339,24 @@ No code changes made this pass — this was a review only, and nothing crossed t
 
 ### Blocked / next session
 The 3 optional hardening ideas above (randomized delimiter token, broader injection regex, startup-check portability) are low-priority nice-to-haves, not required — flagged for whenever prompt-injection work or deployment options come up again, not scheduled on their own. Everything else carried forward unchanged: `advisor.suggest_reductions` empty-batch waste, batch-card expand-to-view, manual-vs-automatic email fetch, frontend storage strategy, dedicated Gmail test account.
+
+---
+
+## Session 10 — 2026-09-04
+
+### Summary
+New feature, not from the standing security/UX backlog: sender-based rules, on branch `feature/sender-rules`. Motivated by a real gap — `filtered_out` conflated "not important" with "never summarized" (`summarizer.summarize`/`rewriter.rewrite` both skip filtered-out messages), so there was no way to get a real summary of a low-priority sender like a newsletter without also burying it as unimportant.
+
+### What was built
+- `clr/core/sender_rules.py` (new) — `match_sender_rule()`: case-insensitive substring match of a sender pattern against the message source; `ignore` rules win over `digest` on overlap.
+- `clr/core/filter.py` — wired the rule check into `filter_message` as a deterministic backstop, same pattern as the existing safety/security-alert overrides: checked after those (so a real emergency/security alert still wins) and before the LLM call. `ignore` short-circuits to `filtered_out`; `digest` skips only the classification LLM call, so summarize/rewrite still run normally and produce a real summary.
+- `clr/core/storage.py` — new `sender_rules` table + add/list/delete helpers, then `update_sender_rule()` in the follow-up commit.
+- `clr/api/routes.py` — `GET`/`POST`/`PUT`/`DELETE /sender-rules`(`/{id}`).
+- `ui/static/js/sender_rules.js` (new) — "Sender Rules" section in the Email tab: add/list/delete rules, then (follow-up commit) edit support — clicking Edit loads a rule into the form (submit becomes "Save Changes", with Cancel), and the delete affordance was upgraded from a near-invisible light-gray "x" to a labeled, properly-sized button after the user found the original one easy to miss.
+- Tests: `test_sender_rules.py`, `test_sender_rules_routes.py` (new), plus additions to `test_filter.py` and `test_storage.py`. 112/112 passing (was 89 at the end of session 9; +23).
+
+### Current state
+Branch pushed to `origin/feature/sender-rules`, not yet merged to `main`.
+
+### Blocked / next session
+Standing backlog unchanged from session 9: `advisor.suggest_reductions` empty-batch waste, batch-card expand-to-view, manual-vs-automatic email fetch, frontend storage strategy, dedicated Gmail test account, plus the 3 optional prompt-injection hardening ideas.
