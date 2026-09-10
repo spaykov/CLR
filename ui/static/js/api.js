@@ -68,6 +68,21 @@ async function del(path) {
   return res.json();
 }
 
+async function put(path, body) {
+  const res = await fetch(BASE_URL + path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    handleUnauthorized(res);
+    const err = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, err.detail ?? "Request failed");
+  }
+  return res.json();
+}
+
 export async function processMessage(message) {
   return post("/process", { message });
 }
@@ -106,4 +121,20 @@ export async function deleteHistoryItem(id) {
 
 export async function clearHistory() {
   return del("/history");
+}
+
+export async function getSenderRules() {
+  return get("/sender-rules");
+}
+
+export async function addSenderRule(pattern, action) {
+  return post("/sender-rules", { pattern, action });
+}
+
+export async function updateSenderRule(id, pattern, action) {
+  return put(`/sender-rules/${encodeURIComponent(id)}`, { pattern, action });
+}
+
+export async function deleteSenderRule(id) {
+  return del(`/sender-rules/${encodeURIComponent(id)}`);
 }
