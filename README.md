@@ -41,6 +41,8 @@ The Email tab fetches your inbox over IMAP (read-only) using a Gmail **app passw
 4. Set `CLR_GMAIL_ADDRESS` in `.env`
 5. Run `python main.py` — it will prompt for the app password at the terminal (never written to disk)
 
+Once configured, CLR fetches new mail automatically in the background (every 15 minutes by default) — the Fetch Emails button in the Email tab still works for an on-demand check. Tune this with `CLR_AUTO_FETCH_ENABLED` (`true`/`false`) and `CLR_AUTO_FETCH_INTERVAL_MINUTES` in `.env`.
+
 ## Running
 
 ```bash
@@ -48,6 +50,13 @@ python main.py
 ```
 
 Then open `http://localhost:8000`.
+
+`python main.py` runs uvicorn with `--reload` and auto-restarts on changes to
+`.py`, `.env`, `.html`, `.js`, and `.css` files — not just Python — so editing
+config, templates, or frontend JS also takes effect without a manual restart.
+Two things still need a full manual restart (stop and re-run `python main.py`):
+the Gmail app-password prompt only runs once at process start, and any file
+type outside that list won't trigger a reload at all.
 
 ## Testing
 

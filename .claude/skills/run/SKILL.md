@@ -38,6 +38,14 @@ done
 # → {"status":"ok"}
 ```
 
+## Auto-reload
+
+`main.py` runs uvicorn with `reload=True` and `reload_includes=[".env", "*.html", "*.js", "*.css"]`,
+so the running dev server restarts itself on changes to `.py`, `.env`,
+`.html`, `.js`, or `.css` files (uvicorn's default only watches `.py`).
+Anything outside that list, and the one-time interactive Gmail
+app-password prompt at startup, still needs a manual stop/restart.
+
 ## Key endpoints
 
 | Method | Path | Purpose |
@@ -73,6 +81,8 @@ curl -s -X POST http://localhost:8000/api/v1/summarize \
 | `CLR_HOST` | No | `0.0.0.0` | Bind address |
 | `CLR_PORT` | No | `8000` | Port |
 | `CLR_LOG_LEVEL` | No | `info` | `debug` / `info` / `warn` / `error` |
+| `CLR_AUTO_FETCH_ENABLED` | No | `true` | Background Gmail auto-fetch on/off |
+| `CLR_AUTO_FETCH_INTERVAL_MINUTES` | No | `15` | Auto-fetch polling interval |
 
 ## Stop
 

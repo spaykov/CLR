@@ -1,5 +1,6 @@
 import { health } from "./api.js";
 import { initBandwidth } from "./bandwidth.js";
+import { initPriority } from "./priority.js";
 import { initInbox } from "./inbox.js";
 import { initEmail } from "./email.js";
 import { initSenderRules } from "./sender_rules.js";
@@ -76,6 +77,7 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 });
 
 initBandwidth();
+initPriority();
 initInbox();
 initEmail();
 initSenderRules();

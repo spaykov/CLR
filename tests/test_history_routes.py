@@ -9,7 +9,7 @@ from clr.core import storage
 from clr.models.message import IncomingMessage, MessageCategory, Priority, ProcessedMessage
 
 
-def _processed(id: str) -> ProcessedMessage:
+def _processed(id: str, priority: Priority = Priority.medium) -> ProcessedMessage:
     raw = IncomingMessage(
         id=id,
         source="test@example.com",
@@ -17,7 +17,7 @@ def _processed(id: str) -> ProcessedMessage:
         category=MessageCategory.email,
         received_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
-    return ProcessedMessage(original=raw, priority=Priority.medium, cognitive_cost=3)
+    return ProcessedMessage(original=raw, priority=priority, cognitive_cost=3)
 
 
 @pytest.fixture
@@ -53,6 +53,31 @@ def test_clear_all_history(client):
     assert resp.status_code == 200
     assert resp.json() == {"ok": True, "deleted": 2}
     assert client.get("/api/v1/history").json()["items"] == []
+
+
+def test_acknowledge_history_item(client):
+    storage.save_processed(_processed("1", priority=Priority.critical))
+    assert {i["id"] for i in client.get("/api/v1/priority-list").json()["items"]} == {"1"}
+
+    resp = client.post("/api/v1/history/1/acknowledge")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+    items = client.get("/api/v1/priority-list").json()["items"]
+    assert items == []
+
+
+def test_acknowledge_history_item_missing_returns_404(client):
+    resp = client.post("/api/v1/history/does-not-exist/acknowledge")
+    assert resp.status_code == 404
+
+
+def test_priority_list_returns_only_actionable_items(client):
+    storage.save_processed(_processed("critical", priority=Priority.critical))
+    storage.save_processed(_processed("low", priority=Priority.low))
+
+    ids = {item["id"] for item in client.get("/api/v1/priority-list").json()["items"]}
+    assert ids == {"critical"}
 
 
 def test_delete_endpoints_require_auth_when_configured(client, monkeypatch):
